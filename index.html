@@ -312,8 +312,16 @@
                 cartMsg.style.color = '#ff832a';
                 cartMsg.style.display = 'block';
 
-                // Send the customer straight to Shopify's hosted checkout
-                window.location.href = cartResult.cart.checkoutUrl;
+                // Force checkout onto the myshopify.com domain — the custom domain
+                // (potionsss.uk) points to Vercel, which doesn't know Shopify's
+                // /cart/c/... checkout routes and would 404.
+                const rawCheckoutUrl = cartResult.cart.checkoutUrl;
+                const fixedCheckoutUrl = rawCheckoutUrl.replace(
+                    /^https:\/\/[^/]+/,
+                    `https://${SHOPIFY_DOMAIN}`
+                );
+
+                window.location.href = fixedCheckoutUrl;
 
             } catch (err) {
                 console.error(err);
