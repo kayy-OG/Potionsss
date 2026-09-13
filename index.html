@@ -248,11 +248,15 @@
             qtyInput.value = val + 1;
         });
 
-        // CHANGED: Real Shopify Add to Cart (AJAX Cart API)
+        // CHANGED: Real Shopify Add to Cart via Storefront API (works cross-origin from Vercel)
+        const SHOPIFY_DOMAIN     = 'eyab1c-v1.myshopify.com';
+        const STOREFRONT_TOKEN   = 'acdfa9efd3106b66aa57100fbabd8413';
+        const STOREFRONT_VERSION = '2025-01';
+
         const bagNowBtn = document.getElementById('bag-now-btn');
         const cartMsg   = document.getElementById('cart-msg');
 
-        bagNowBtn.addEventListener('click', () => {
+        bagNowBtn.addEventListener('click', async () => {
             const variantId = bagNowBtn.getAttribute('data-variant-id');
             const quantity  = parseInt(qtyInput.value);
 
@@ -266,31 +270,59 @@
             bagNowBtn.disabled = true;
             bagNowBtn.textContent = 'ADDING...';
 
-            fetch('/cart/add.js', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: variantId, quantity: quantity })
-            })
-            .then(res => {
-                if (!res.ok) throw new Error('Add to cart failed');
-                return res.json();
-            })
-            .then(() => {
-                cartMsg.textContent = 'Added to bag!';
+            try {
+                const response = await fetch(`https://${SHOPIFY_DOMAIN}/api/${STOREFRONT_VERSION}/graphql.json`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Shopify-Storefront-Access-Token': STOREFRONT_TOKEN
+                    },
+                    body: JSON.stringify({
+                        query: `
+                            mutation cartCreate($lines: [CartLineInput!]) {
+                                cartCreate(input: { lines: $lines }) {
+                                    cart {
+                                        id
+                                        checkoutUrl
+                                    }
+                                    userErrors {
+                                        message
+                                    }
+                                }
+                            }
+                        `,
+                        variables: {
+                            lines: [{
+                                merchandiseId: `gid://shopify/ProductVariant/${variantId}`,
+                                quantity: quantity
+                            }]
+                        }
+                    })
+                });
+
+                const result = await response.json();
+                const cartResult = result.data && result.data.cartCreate;
+                const errors = cartResult && cartResult.userErrors;
+
+                if (!cartResult || (errors && errors.length > 0)) {
+                    throw new Error(errors && errors[0] ? errors[0].message : 'Cart creation failed');
+                }
+
+                cartMsg.textContent = 'Taking you to checkout...';
                 cartMsg.style.color = '#ff832a';
                 cartMsg.style.display = 'block';
-                bagNowBtn.disabled = false;
-                bagNowBtn.textContent = 'BAG NOW';
-                // Uncomment to send customers straight to checkout instead:
-                // window.location.href = '/cart';
-            })
-            .catch(() => {
+
+                // Send the customer straight to Shopify's hosted checkout
+                window.location.href = cartResult.cart.checkoutUrl;
+
+            } catch (err) {
+                console.error(err);
                 cartMsg.textContent = 'Something went wrong. Try again.';
                 cartMsg.style.color = '#ff4d4d';
                 cartMsg.style.display = 'block';
                 bagNowBtn.disabled = false;
                 bagNowBtn.textContent = 'BAG NOW';
-            });
+            }
         });
 
         // Accordion Controls
