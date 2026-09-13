@@ -256,6 +256,15 @@
         const bagNowBtn = document.getElementById('bag-now-btn');
         const cartMsg   = document.getElementById('cart-msg');
 
+        // CHANGED: Reset button if the page is restored from browser cache (e.g. clicking Back after checkout)
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted || (window.performance && performance.getEntriesByType('navigation')[0]?.type === 'back_forward')) {
+                bagNowBtn.disabled = false;
+                bagNowBtn.textContent = 'BAG NOW';
+                cartMsg.style.display = 'none';
+            }
+        });
+
         bagNowBtn.addEventListener('click', async () => {
             const variantId = bagNowBtn.getAttribute('data-variant-id');
             const quantity  = parseInt(qtyInput.value);
@@ -403,3 +412,4 @@
     </script>
 </body>
 </html>
+
